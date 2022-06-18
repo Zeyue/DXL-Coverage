@@ -2,7 +2,7 @@
 pragma runLim, 0
 
 // attributes
-const string S_ATTR_1 = NLS_("需求模块列表")
+const string S_ATTR_1 = NLS_("需求模块列表") // 
 const string S_ATTR_2 = NLS_("对象类型")
 const string S_ATTR_3 = NLS_("需求数量")
 
@@ -10,7 +10,7 @@ const string S_ATTR_3 = NLS_("需求数量")
 const string S_LINK_1 = NLS_("满足")
 
 // values
-const string S_VAL_1 = NLS_("需求")
+const string S_VAL_1 = NLS_("需求") // 通过该属性值，过滤“需求”
 
 // 定位对应模块
 string s_module_name = obj.S_ATTR_1
