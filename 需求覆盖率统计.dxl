@@ -11,7 +11,7 @@ pragma runLim,0  /* turn off timeout dialog */
 
 // 可配置变量
 string MODULE_TYPE_ATTR = NLS_("模块层级") // 为模块设置的模块属性，标识该模块的用途
-// TODO: 考虑看看AttrDef
+
 Skip MODULE_TYPE_VALUE = create
 put(MODULE_TYPE_VALUE, 1, "干系人需求")
 put(MODULE_TYPE_VALUE, 2, "系统需求")
@@ -25,10 +25,7 @@ put(MODULE_TYPE_VALUE, 9, "软件合格性测试")
 put(MODULE_TYPE_VALUE, 10, "系统集成测试")
 put(MODULE_TYPE_VALUE, 11, "系统合格性测试")
 
-string OBJECT_TYPE_ATTR = NLS_("对象类型")
-string OBJECT_TYPE_VALUE[] = {"需求",
-                            "架构元素",
-                            "测试用例"}
+string OBJECT_TYPE_ATTR = NLS_("对象类型") // 值=1代表需求/架构元素/测试用例
 string LINK_TYPE_V = "满足" // 表示纵向覆盖关系
 string LINK_TYPE_H = "验证" // 表示横向覆盖关系
 
@@ -69,12 +66,12 @@ string determinModuleType(Module itm)
         {
             int i = itm.MODULE_TYPE_ATTR 
             find(MODULE_TYPE_VALUE,i,s)
-            return s
         }
         else
         {
-            return "错误：模块层级未定义！"
+            s = "错误：模块层级未定义！"
         }
+        return s
     }
 }
 
@@ -105,6 +102,8 @@ void scanLinkModule(Item itm)
 	string        lmn   = "" // Link Module Name
 	string        src   = "" // 源模块名称
 	string        tgt   = "" // 目标模块名称
+    string        srcLv = "" // 源模块层级
+    string        tgtLv = "" // 目标模块层级
 	int           count = 0 // 计数器
 	ModuleVersion mv    = null // Module Version
 	Link          l     = null // Link
@@ -125,25 +124,33 @@ void scanLinkModule(Item itm)
 
 		filtering off // 关闭目标模块中的过滤器，否则，如果目标模块激活的过滤器，那么遍历的信息只有过滤后的信息
 
-        // TODO: 识别目标模块的“模块层级”属性
-
+        // 识别目标模块的“模块层级”属性
+        tgtLv = determinModuleType(tm)
+        print tgtLv
+        
 		for o in all(tm) do // 遍历目标模块中所有对象，使用all会对过滤器敏感，如果使用entire，会忽略过滤器
 		{
-                      
-            if(o.OBJECT_TYPE_ATTR == 1) // 如果对象的“对象类型”属性值是“需求”
+            if (exists attribute OBJECT_TYPE_ATTR)
             {
-                // TODO: 目标模块需求总数计数器+1 -> 需求总数
-                // TODO: 统计目标模块内具有lmn链接类型入向链接的对象
-                // TODO: 读取对应源模块
-                for l in all(o<-lmn) do // 遍历对象o所有使用lmn类型链接的入向链接
-			    {
-                    // TODO: 读取对应源模块
-                    // TODO: 确认对应源模块层级
-                    // TODO: 统计目标模块内具有lmn链接类型入向链接且链接来源层级为对应源模块层级的对象计数 -> 被覆盖需求数
-			    }
+                int i = o.MODULE_TYPE_ATTR 
+                if(i == 1) // 如果对象的“对象类型”属性值是“需求”
+                {
+                    // TODO: 目标模块需求总数计数器+1 -> 需求总数
+                    // TODO: 统计目标模块内具有lmn链接类型入向链接的对象
+                    for l in all(o<-lmn) do // 遍历对象o所有使用lmn类型链接的入向链接
+                    {
+                        // TODO: 读取对应源模块
+                        // TODO: 确认对应源模块层级
+                        // TODO: 统计目标模块内具有lmn链接类型入向链接且链接来源层级为对应源模块层级的对象计数 -> 被覆盖需求数
+                    }
+                }                
             }
-			
+            else
+            {
+                print "错误：对象类型未定义！"
+            }
 		}
+        
 		close(tm) // 关闭目标模块
 /*
 		// read the source module
