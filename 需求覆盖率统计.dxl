@@ -10,21 +10,27 @@
 pragma runLim,0  /* turn off timeout dialog */
 
 // 可配置变量
-string moduleType = "模块层级" // 为模块设置的模块属性，标识该模块的用途
+string MODULE_TYPE_ATTR = NLS_("模块层级") // 为模块设置的模块属性，标识该模块的用途
 // TODO: 考虑看看AttrDef
-string ModuleTypeValue[] = {"干系人需求",        // 1
-                        "系统需求",         // 2
-                        "系统架构",         // 3
-                        "软件需求",         // 4
-                        "软件架构",         // 5
-                        "软件详细设计",     // 6
-                        "单元测试",         // 7
-                        "软件集成测试",     // 8
-                        "软件合格性测试",   // 9
-                        "系统集成测试",     // 10
-                        "系统合格性测试"}   // 11
-string linkType_V = "满足" // 表示纵向覆盖关系
-string linkType_H = "验证" // 表示横向覆盖关系
+Skip MODULE_TYPE_VALUE = create
+put(MODULE_TYPE_VALUE, 1, "干系人需求")
+put(MODULE_TYPE_VALUE, 2, "系统需求")
+put(MODULE_TYPE_VALUE, 3, "系统架构")
+put(MODULE_TYPE_VALUE, 4, "软件需求")
+put(MODULE_TYPE_VALUE, 5, "软件架构")
+put(MODULE_TYPE_VALUE, 6, "软件详细设计")
+put(MODULE_TYPE_VALUE, 7, "单元测试")
+put(MODULE_TYPE_VALUE, 8, "软件集成测试")
+put(MODULE_TYPE_VALUE, 9, "软件合格性测试")
+put(MODULE_TYPE_VALUE, 10, "系统集成测试")
+put(MODULE_TYPE_VALUE, 11, "系统合格性测试")
+
+string OBJECT_TYPE_ATTR = NLS_("对象类型")
+string OBJECT_TYPE_VALUE[] = {"需求",
+                            "架构元素",
+                            "测试用例"}
+string LINK_TYPE_V = "满足" // 表示纵向覆盖关系
+string LINK_TYPE_H = "验证" // 表示横向覆盖关系
 
 // 度量量
 int linkCount = 0 // 链接计数器
@@ -35,7 +41,7 @@ int tgtCoverReqCount = 0 // 目标模块被覆盖需求计数器
 int srcValidObjectCount = 0 // 源模块有效对象（需求、架构元素、测试用例）计数器
 int srcLinkedValidObjectCount = 0 // 源模块中链接的有效对象计数器
 
-real coverage // 覆盖率
+real coverage = 0.0 // 覆盖率
 
 // 全局变量
 DB  dbMain        = null // DB含义是Dialog Box，此句的目标是创建“主对话框”
@@ -47,30 +53,44 @@ Buffer  outBuf    = null // 输出缓存
 
 /************************************
     determinModuleType
+    作用：确认当前模块的“模块层级”属性，具体是哪一个层级的模块
+    输入：模块
+    返回值：模块层级属性值
 ************************************/
+
 string determinModuleType(Module itm)
 {
     if (type (itm) == "Formal")
     {
+        string s = ""
         // do something with formal module
-        AttrDef adRec
-        adRec = find (m, "模块层级")
-        return adRec.name
+
+        if (exists attribute MODULE_TYPE_ATTR)
+        {
+            int i = itm.MODULE_TYPE_ATTR 
+            find(MODULE_TYPE_VALUE,i,s)
+            return s
+        }
+        else
+        {
+            return "错误：模块层级未定义！"
+        }
     }
 }
 
 /************************************
     writeLine
     作用：写入一行csv
+    输出：链接关系，模块层级，需求总数，被覆盖需求数，链接来源，源模块有效对象数，链接总数，源模块链接的有效对象数，覆盖率
 ************************************/
 void writeLine()
 {
-    outBuf += lmn "," src "," tgt "," count "\n" //以csv格式输出一条链接模块计数信息到缓存
+    //outBuf += lmn "," src "," tgt "," count "\n" //以csv格式输出一条链接模块计数信息到缓存
 }
 
 /************************************
 	scanLinkModule
-	输入：项，应输入链接模块
+	输入：链接模块
 	返回值：空
 	作用：遍历给定的链接模块中所有链接集，然后遍历每个链接集下源模块中所有的对象的出向链接，对出向链接计数，以csv格式返回到输出缓存中
     输出：
@@ -80,6 +100,7 @@ void scanLinkModule(Item itm)
 {
 	Module        lm    = null // Link Module
 	Module        sm    = null // 源模块
+    Module        tm    = null // 目标模块
 	Object        o     = null
 	string        lmn   = "" // Link Module Name
 	string        src   = "" // 源模块名称
@@ -100,9 +121,37 @@ void scanLinkModule(Item itm)
 		tgt = o."target" "" // 目标模块名称
 
 		// read the source module
+		tm = read(tgt, false) // 读目标模块，不打开
+
+		filtering off // 关闭目标模块中的过滤器，否则，如果目标模块激活的过滤器，那么遍历的信息只有过滤后的信息
+
+        // TODO: 识别目标模块的“模块层级”属性
+
+		for o in all(tm) do // 遍历目标模块中所有对象，使用all会对过滤器敏感，如果使用entire，会忽略过滤器
+		{
+                      
+            if(o.OBJECT_TYPE_ATTR == 1) // 如果对象的“对象类型”属性值是“需求”
+            {
+                // TODO: 目标模块需求总数计数器+1 -> 需求总数
+                // TODO: 统计目标模块内具有lmn链接类型入向链接的对象
+                // TODO: 读取对应源模块
+                for l in all(o<-lmn) do // 遍历对象o所有使用lmn类型链接的入向链接
+			    {
+                    // TODO: 读取对应源模块
+                    // TODO: 确认对应源模块层级
+                    // TODO: 统计目标模块内具有lmn链接类型入向链接且链接来源层级为对应源模块层级的对象计数 -> 被覆盖需求数
+			    }
+            }
+			
+		}
+		close(tm) // 关闭目标模块
+/*
+		// read the source module
 		sm = read(src, false) // 读源模块，不打开
 
 		filtering off // 关闭源模块中的过滤器，否则，如果源模块激活的过滤器，那么遍历的信息只有过滤后的信息
+
+        // TODO: 识别源模块的“模块层级”属性
 
 		for o in all(sm) do // 遍历源模块中所有对象，使用all会对过滤器敏感，如果使用entire，会忽略过滤器
 		{
@@ -121,10 +170,22 @@ void scanLinkModule(Item itm)
 		close(sm) // 关闭源模块
 
 		// output count for this linkset
-		outBuf += lmn "," src "," tgt "," count "\n" //以csv格式输出一条链接模块计数信息到缓存
+		// outBuf += lmn "," src "," tgt "," count "\n" //以csv格式输出一条链接模块计数信息到缓存
 	}
-
+*/
+    }
 	close(lm) // 关闭链接模块
+}
+
+/************************************
+	scanFormalModule
+	输入：正式模块
+	返回值：空
+	效果：统计正式模块中“对象类型”是“需求”的对象数量
+************************************/
+void scanFormalModule(Item itm)
+{
+
 }
 
 /************************************
@@ -175,7 +236,7 @@ void doList(DB db) // 主窗口中ok按钮的回调函数，调用了scanFolder�
 
 	Stream outfile = write(fName) // 打开fName文件，已写入方式
 
-	outfile << "Link Module, Source Module, Target Module, No.Links\n" // 写入表头
+	outfile << "链接关系, 模块层级, 需求总数, 被覆盖需求数, 链接来源, 源模块有效对象数, 链接总数, 源模块链接的有效对象数, 覆盖率\n" // 写入表头
 
 	scanFolder(currFolder) // 搜索文件夹
 
@@ -191,19 +252,19 @@ void doList(DB db) // 主窗口中ok按钮的回调函数，调用了scanFolder�
 ************************************/
 currFolder = current Folder // 定位到当前文件夹
 
-dbMain = create("List Link Counts") // 创建名为“List Link Counts”的主对话框
+dbMain = create("需求覆盖率统计") // 创建名为“List Link Counts”的主对话框
 
-label(dbMain, "This utility exports a count of all links per linkset.\n" //-
-              "Output is to a CSV file as follows:\n" //-
-              "Link Module, Source Module, Target Module, No.Links\n") // 在主对话框中创建标签元素（DBE）
+label(dbMain, "该脚本导出需求覆盖率统计数据\n" //-
+              "输出文件是CSV格式文件:\n" //-
+              "链接关系, 模块层级, 需求总数, 被覆盖需求数, 链接来源, 源模块有效对象数, 链接总数, 源模块链接的有效对象数, 覆盖率\n") // 在主对话框中创建标签元素（DBE）
 /*
 DBE field(DB box, string label, string initial, int width [,bool readOnly]) 
 */
-dbeExport     = field(dbMain, "Folder", fullName(currFolder), 50, true) // 在主对话框中添加字段元素，标签是“Folder”，字段初始值是当前文件夹的全称，宽度50，只读
+dbeExport     = field(dbMain, "文件夹", fullName(currFolder), 50, true) // 在主对话框中添加字段元素，标签是“Folder”，字段初始值是当前文件夹的全称，宽度50，只读
 /*
 DBE fileName(DB box, [string label,] [,string initFileName [,string extension, string description [,bool readOnly]]]) 
 */
-dbeExportPath = fileName(dbMain, "Report File", "C:/Temp/" name(currFolder) " LinkCounts.csv") // 在主对话框中添加文件名称元素，标签是“报告文件”，初始值是一个临时路径
+dbeExportPath = fileName(dbMain, "CSV文件存储位置", "C:/Temp/ReqCoverage.csv") // 在主对话框中添加文件名称元素，标签是“报告文件”，初始值是一个临时路径
 
 ok(dbMain, "OK", doList) // 在主对话框添加“ok”按钮，回调函数是doList
 close(dbMain, true, doClose) // 在主对话框添加“close”按钮，设置按钮可见，动作函数是doClose
