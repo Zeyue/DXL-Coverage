@@ -40,6 +40,8 @@ for o in m do{
 	}
 }
 
+filtering off
+
 coverage = countCoveredReq * 100 / countReq
 
 display coverage"" "%"
