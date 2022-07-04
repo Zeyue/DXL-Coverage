@@ -26,19 +26,23 @@ put(MODULE_TYPE_VALUE, 10, "系统集成测试")
 put(MODULE_TYPE_VALUE, 11, "系统合格性测试")
 
 string OBJECT_TYPE_ATTR = NLS_("对象类型") // 值=1代表需求/架构元素/测试用例
+int VALID_OBJECT_TYPE = 1 //"对象类型"值=1代表需求/架构元素/测试用例
 string LINK_TYPE_V = "满足" // 表示纵向覆盖关系
 string LINK_TYPE_H = "验证" // 表示横向覆盖关系
 
 // 度量量
-int linkCount = 0 // 链接计数器
+string linkType = "" // 链接类型
+string targetLevel = "" // 目标层级
+string sourceLevel = "" // 源层级
 
-int tgtReqCount = 0 // 目标模块需求计数器
-int tgtCoverReqCount = 0 // 目标模块被覆盖需求计数器
+Skip tgtReqCount = createString // 目标层级需求计数器(干系人需求, 33)
+Skip tgtCoverReqCount = createString // 目标层级被覆盖需求计数器(干系人需求<-系统需求，22)
 
-int srcValidObjectCount = 0 // 源模块有效对象（需求、架构元素、测试用例）计数器
-int srcLinkedValidObjectCount = 0 // 源模块中链接的有效对象计数器
+Skip srcValidObjectCount = createString // 源层级有效对象（需求、架构元素、测试用例）计数器(系统需求，45)
+Skip linkCount = createString // 层级链接计数器(干系人需求<-系统需求, 35)
+Skip srcLinkedValidObjectCount = 0 // 源层级中链接的有效对象计数器(干系人需求<-系统需求, 12)
 
-real coverage = 0.0 // 覆盖率
+Skip coverage = createString// 覆盖率(干系人需求<-系统需求, 50.00%)
 
 // 全局变量
 DB  dbMain        = null // DB含义是Dialog Box，此句的目标是创建“主对话框”
@@ -82,7 +86,7 @@ string determinModuleType(Module itm)
 ************************************/
 void writeLine()
 {
-    //outBuf += lmn "," src "," tgt "," count "\n" //以csv格式输出一条链接模块计数信息到缓存
+    outBuf += linkType "," targetLevel "," tgtReqCount "," tgtCoverReqCount "," sourceLevel "," srcValidObjectCount "," linkCount "," srcLinkedValidObjectCount "," coverage "%" "\n" //以csv格式输出一条覆盖率统计信息到缓存
 }
 
 /************************************
@@ -99,19 +103,17 @@ void scanLinkModule(Item itm)
 	Module        sm    = null // 源模块
     Module        tm    = null // 目标模块
 	Object        o     = null
-	string        lmn   = "" // Link Module Name
 	string        src   = "" // 源模块名称
 	string        tgt   = "" // 目标模块名称
-    string        srcLv = "" // 源模块层级
-    string        tgtLv = "" // 目标模块层级
 	int           count = 0 // 计数器
 	ModuleVersion mv    = null // Module Version
 	Link          l     = null // Link
+    Skip          lvlMap = createString // 目标层级映射（目标, 源），例如 "干系人需求-系统需求"
 
-	lmn = fullName(itm) // 链接模块名称，实则为输入Item（链接模块）的全称
+	linkType = fullName(itm) // 链接模块名称，实则为输入Item（链接模块）的全称
 
 	// read the link module
-	lm = read(lmn, false) // false的含义是不打开链接模块
+	lm = read(linkType, false) // 读取链接模块，false的含义是不打开链接模块
 
 	for o in lm do // 在链接模块中遍历对象（链接集）
 	{
@@ -121,66 +123,65 @@ void scanLinkModule(Item itm)
 
 		// read the source module
 		tm = read(tgt, false) // 读目标模块，不打开
-
 		filtering off // 关闭目标模块中的过滤器，否则，如果目标模块激活的过滤器，那么遍历的信息只有过滤后的信息
-
         // 识别目标模块的“模块层级”属性
-        tgtLv = determinModuleType(tm)
-        print tgtLv
+        targetLevel = determinModuleType(tm)
+
+        // 读取并确认源模块的模块层级
+        sm = read(src, false)
+        filtering off
+        sourceLevel = determinModuleType(sm)
+
+        // 组合配对
+        string pair = targetLevel "-" sourceLevel
+        if(!find(lvlMap, pair)) // 如果不存在配对值
+        {
+            tgtReqCount = 0
+            put(lvlMap, pair, tgtReqCount) // 创建配对，计数器置0
+        }
+        else // 如果存在配对值
+        {
+            find(lvlMap, pair, tgtReqCount) // 读取当前需求计数到计数器，继续计数
+        }
         
 		for o in all(tm) do // 遍历目标模块中所有对象，使用all会对过滤器敏感，如果使用entire，会忽略过滤器
 		{
-            if (exists attribute OBJECT_TYPE_ATTR)
+            if (exists attribute OBJECT_TYPE_ATTR) // 如果对象类型属性存在
             {
-                int i = o.MODULE_TYPE_ATTR 
-                if(i == 1) // 如果对象的“对象类型”属性值是“需求”
+                int objectType = o.OBJECT_TYPE_ATTR 
+                if(objectType == VALID_OBJECT_TYPE) // 如果对象的“对象类型”属性值是“需求”
                 {
-                    // TODO: 目标模块需求总数计数器+1 -> 需求总数
-                    // TODO: 统计目标模块内具有lmn链接类型入向链接的对象
-                    for l in all(o<-lmn) do // 遍历对象o所有使用lmn类型链接的入向链接
+                    for l in o<-linkType do
                     {
-                        // TODO: 读取对应源模块
-                        // TODO: 确认对应源模块层级
-                        // TODO: 统计目标模块内具有lmn链接类型入向链接且链接来源层级为对应源模块层级的对象计数 -> 被覆盖需求数
-                    }
-                }                
+                        linkCount++ // 链接数量+1
+                    }  
+                }              
             }
             else
             {
-                print "错误：对象类型未定义！"
+                print targetLevel "模块错误：对象类型未定义！"
             }
 		}
-        
-		close(tm) // 关闭目标模块
-/*
-		// read the source module
-		sm = read(src, false) // 读源模块，不打开
+        // TODO: 统计目标模块内具有linkType链接类型入向链接的对象
+        /*
+        for l in all(o<-linkType) do // 遍历对象o所有使用lmn类型链接的入向链接
+        {
+            // TODO: 读取对应源模块
+            // TODO: 确认对应源模块层级
 
-		filtering off // 关闭源模块中的过滤器，否则，如果源模块激活的过滤器，那么遍历的信息只有过滤后的信息
+            // TODO: 统计目标模块内具有lmn链接类型入向链接且链接来源层级为对应源模块层级的对象计数 -> 被覆盖需求数
 
-        // TODO: 识别源模块的“模块层级”属性
-
-		for o in all(sm) do // 遍历源模块中所有对象，使用all会对过滤器敏感，如果使用entire，会忽略过滤器
-		{
-			for l in all(o->lmn) do // 遍历对象o所有使用lmn类型链接的出向链接
-			{
-				// check for target module for matching name
-				mv = targetVersion(l) // 返回链接l的目标模块版本
-
-				if (fullName(mv) == tgt) // 如果模块版本的全称与目标模块名称一致
-				{
-					count++ // 计数器+1
-				}
-			}
-		}
-
-		close(sm) // 关闭源模块
-
-		// output count for this linkset
-		// outBuf += lmn "," src "," tgt "," count "\n" //以csv格式输出一条链接模块计数信息到缓存
-	}
+        }
 */
+        filtering off
+		close(tm) // 关闭目标模块
+        close(sm) // 关闭源模块
     }
+    if(tgtReqCount != 0)
+        coverage = tgtCoverReqCount * 100 / tgtReqCount
+    else
+        coverage = 0.0
+    writeLine();
 	close(lm) // 关闭链接模块
 }
 
@@ -192,7 +193,23 @@ void scanLinkModule(Item itm)
 ************************************/
 void scanFormalModule(Item itm)
 {
-
+    targetLevel = determinModuleType(itm)
+    Object o = null
+    for o in all(itm) do // 遍历目标模块中所有对象，使用all会对过滤器敏感，如果使用entire，会忽略过滤器
+    {
+        if (exists attribute OBJECT_TYPE_ATTR) // 如果对象类型属性存在
+        {
+            int objectType = o.OBJECT_TYPE_ATTR 
+            if(objectType == VALID_OBJECT_TYPE) // 如果对象的“对象类型”属性值是“需求”
+            {
+                tgtReqCount++
+            }              
+        }
+        else
+        {
+            print targetLevel "模块错误：对象类型未定义！"
+        }
+    }
 }
 
 /************************************
@@ -215,6 +232,10 @@ void scanFolder(Folder f) // 调用了scanLinkModule函数，同时递归自身
 		if (type(itm) == "Link") // 如果项的类型是链接模块
 		{
 			scanLinkModule(itm) // 调用scanLinkModule，将该链接模块传入
+		}
+        else if (type(itm) == "Formal") // 如果项的类型是链接模块
+		{
+			scanFormalModule(itm) // 调用scanFormalModule，将该正式模块传入
 		}
 		else if ((type (itm) == "Project") || (type (itm) == "Folder")) // 如果项的类型是项目文件夹或文件夹
 		{

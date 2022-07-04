@@ -1,0 +1,479 @@
+pragma runLim,0  /* turn off timeout dialog */
+
+// 可配置变量
+string MODULE_TYPE_ATTR = NLS_("模块层级") // 为模块设置的模块属性，标识该模块的用途
+
+Skip MODULE_TYPE_VALUE = create
+put(MODULE_TYPE_VALUE, 1, "干系人需求")
+put(MODULE_TYPE_VALUE, 2, "系统需求")
+put(MODULE_TYPE_VALUE, 3, "系统架构")
+put(MODULE_TYPE_VALUE, 4, "软件需求")
+put(MODULE_TYPE_VALUE, 5, "软件架构")
+put(MODULE_TYPE_VALUE, 6, "软件详细设计")
+put(MODULE_TYPE_VALUE, 7, "单元测试")
+put(MODULE_TYPE_VALUE, 8, "软件集成测试")
+put(MODULE_TYPE_VALUE, 9, "软件合格性测试")
+put(MODULE_TYPE_VALUE, 10, "系统集成测试")
+put(MODULE_TYPE_VALUE, 11, "系统合格性测试")
+
+string OBJECT_TYPE_ATTR = NLS_("对象类型") // 值=1代表需求/架构元素/测试用例
+int VALID_OBJECT_TYPE = 1 //"对象类型"值=1代表需求/架构元素/测试用例
+
+Skip linkType = createString // 模块层级间对应链接模块名称(满足, 0) TODO: (干系人需求<-系统需求，满足)
+Skip linkCount = createString // TODO: 模块层级间对应链接总数量(干系人需求<-系统需求, 55)
+Skip reqCount = createString // 模块层级有效对象计数器(干系人需求, 33)
+Skip coverReqCount = createString // 目标层级被覆盖需求计数器(干系人需求<-系统需求，22)
+Skip coverage = createString// 覆盖率(干系人需求<-满足, 50.00%)
+
+// 全局变量
+DB  dbMain        = null // DB含义是Dialog Box，此句的目标是创建“主对话框”
+DBE dbeExport     = null // DBE含义是Dialog Box Element，此句目标是创建一个对话框元素“导出”
+DBE dbeExportPath = null // 创建一个对话框元素“导出路径”
+
+Folder currFolder = null // 当前文件夹
+Buffer  outBuf    = null // 输出缓存
+
+/************************************
+    getModuleType
+    作用：确认当前模块的“模块层级”属性，具体是哪一个层级的模块
+    输入：模块
+    返回值：模块层级属性值
+************************************/
+string getModuleType(Module itm)
+{
+    if (type (itm) == "Formal")
+    {
+        string s = ""
+        // do something with formal module
+
+        if (exists attribute MODULE_TYPE_ATTR)
+        {
+            int i = itm.MODULE_TYPE_ATTR 
+            find(MODULE_TYPE_VALUE,i,s)
+        }
+        else
+        {
+            s = "错误：模块层级未定义！"
+        }
+        return s
+    }
+}
+
+/************************************
+    getValidObjNum
+    作用：确认当前模块下的有效对象（需求、架构元素、测试用例）数量，并累加到对应层级计数器
+    输入：模块名称
+    返回值：空
+************************************/
+void getValidObjNum(Module m, string mLvl)
+{
+    Object o = null
+    int count = 0
+    if(find(reqCount, mLvl, count)) // 如果已存在对应层级的计数器
+    {
+        delete(reqCount, mLvl) // 将当前值取出给count，并删除该键值对
+    }
+
+    for o in all(m) do // 遍历目标模块中所有对象，使用all会对过滤器敏感，如果使用entire，会忽略过滤器
+    {
+        if (exists attribute OBJECT_TYPE_ATTR) // 如果对象类型属性存在
+        {
+            int objectType = o.OBJECT_TYPE_ATTR 
+            if(objectType == VALID_OBJECT_TYPE) // 如果对象的“对象类型”属性值是“需求”
+            {
+                // 对应模块层级有效对象总数计数器++
+                count++
+            }              
+        }
+        else
+        {
+            print mLvl "模块错误：对象类型未定义！"
+        }
+    }
+    put(reqCount, mLvl, count) // 使用更新后的count重新创建该层级键值对
+}
+
+/************************************
+    getCoveredReqNum
+    作用：确认当前模块下的被特定链接关系覆盖对象（需求、架构元素、测试用例）数量，并累加到对应层级计数器
+    输入：模块名称
+    返回值：空
+************************************/
+void getCoveredReqNum(Module m, string mLvl)
+{
+    Object o = null
+    int count = 0
+    string link = ""
+    for link in linkType do
+    {
+        if(find(coverReqCount, (string key(linkType)), count)) // 如果已存在对应层级的计数器
+        {
+            delete(coverReqCount, (string key(linkType))) // 将当前值取出给count，并删除该键值对
+        }
+        Filter f = hasLinks(linkFilterIncoming, link) // link需要是全称
+        set(m,f)
+        filtering on
+
+        for o in m do
+        {
+            int type = o.OBJECT_TYPE_ATTR
+            if(type == VALID_OBJECT_TYPE)
+            {
+                count++
+            }
+        }
+        if(count != 0)
+        {
+            put(coverReqCount, (string key(linkType)), count) // 使用更新后的count重新创建该层级键值对
+        }
+
+        filtering off
+    }
+}
+
+void caculateCoverage(string mLvl, string linkType)
+{
+    int coveredCount = 0
+    int totalCount = 0
+    real co = 0.0
+    find(coverReqCount, mLvl "<-" linkType, coveredCount)
+    find(reqCount, mLvl, totalCount)
+
+    if(totalCount != 0)
+    {
+        co = coveredCount * 10000 / totalCount
+        co = co*0.01
+        put(coverage, mLvl "<-" linkType, co"" "%")
+    }
+}
+
+/************************************
+	scanLinkModule
+	输入：项，应输入链接模块
+	返回值：空
+	作用：遍历给定的链接模块中所有链接集，然后遍历每个链接集下源模块中所有的对象的出向链接
+************************************/
+void scanLinkModule(string lmn)
+{
+	Module        lm    = null // Link Module
+	Module        sm    = null // 源模块
+    Module        tm    = null // 目标模块
+	Object        o     = null
+	string        src   = "" // 源模块名称
+	string        tgt   = "" // 目标模块名称
+    string        srcLvl = "" // 源模块层级
+    string        tgtLvl = "" // 目标模块层级
+	int           count = 0 // 计数器
+	ModuleVersion mv    = null // Module Version
+	Link          l     = null // Link
+
+	// read the link module
+	lm = read(lmn, false) // false的含义是不打开链接模块
+
+	for o in lm do // 在链接模块中遍历对象（链接集）
+	{
+		// get names of source and target modules
+		src = o."source" "" // 源模块名称
+		tgt = o."target" "" // 目标模块名称
+        
+		// read the source module
+		sm = read(src, false) // 读源模块，不打开
+        tm = read(tgt, false) // 读取模块，不打开
+
+		filtering off // 关闭源模块中的过滤器，否则，如果源模块激活的过滤器，那么遍历的信息只有过滤后的信息
+
+        srcLvl = getModuleType(sm)
+        tgtLvl = getModuleType(tm)
+        if(!find(linkType, (tgtLvl "<-" srcLvl)))
+        {
+            put(linkType, (tgtLvl "<-" srcLvl), lmn)
+        }
+
+        // getCoveredReqNum(tm, tgtLvl)
+
+        if(find(linkCount, (tgtLvl "<-" srcLvl), count)) // 如果已存在对应层级的计数器
+        {
+            delete(linkCount, (tgtLvl "<-" srcLvl)) // 将当前值取出给count，并删除该键值对
+        }
+
+		for o in all(sm) do // 遍历源模块中所有对象，使用all会对过滤器敏感，如果使用entire，会忽略过滤器
+		{
+			for l in all(o->lmn) do // 遍历对象o所有使用lmn类型链接的出向链接
+			{
+				// check for target module for matching name
+				mv = targetVersion(l) // 返回链接l的目标模块版本
+
+				if (fullName(mv) == tgt) // 如果模块版本的全称与目标模块名称一致
+				{
+					count++ // 计数器+1
+				}
+			}
+		}
+        put(linkCount, (tgtLvl "<-" srcLvl), count)
+
+		close(sm) // 关闭源模块
+        close(tm)
+	}
+
+	close(lm) // 关闭链接模块
+}
+
+/************************************
+	processLink
+
+	Do something with the given link module.
+************************************/
+void processLink(string mName)
+{
+    scanLinkModule(mName)
+}
+
+/************************************
+	processFormal
+
+	Do something with the given formal module.
+************************************/
+void processFormal(string mName)
+{
+	//print("Formal Module: " mName "\n")
+    Module m = read(mName, false)
+    string mLvl = getModuleType(m)
+    getValidObjNum(m, mLvl)
+    
+    getCoveredReqNum(m, mLvl)
+
+    close(m)
+}
+
+/************************************
+	processFolder
+
+	Do something with the given folder.
+************************************/
+void processFolder(Folder f)
+{
+	//print("Folder: " fullName(f) "\n")
+}
+
+/************************************
+	processProject
+
+	Do something with the given project.
+************************************/
+void processProject(Project f)
+{
+	//print("Project: " fullName(f) "\n")
+}
+
+/************************************
+	scanFolder1
+    扫描文件夹或项目文件夹，根据文件夹内容的不同Item类型，执行不同的操作
+************************************/
+void scanFolder1(Folder f)
+{
+	Item itm
+
+	if (null f)
+	{
+		print("NULL Folder parameter passed")
+		return
+	}
+
+	// loop through items at top level of folder
+	for itm in f do
+	{
+		// sensible checks to avoid run-time errors
+		if (null itm) continue
+		if (isDeleted(itm)) continue
+
+		// take action according to type of the item
+		if (type (itm) == "Project")
+		{
+			// do something with project
+			//processProject(project(itm))
+
+			// scan items in the project
+			scanFolder1(folder(itm))
+		}
+		else if (type (itm) == "Folder")
+		{
+			// do something with folder
+			//processFolder(folder(itm))
+
+			// scan items in the folder
+			scanFolder1(folder(itm))
+		}
+        else if (type (itm) == "Link")
+		{
+			// do something with link module
+			processLink(fullName(itm))
+		}
+		else if (type (itm) == "Formal")
+		{
+			// do something with formal module
+			// processFormal(fullName(itm))
+		}
+
+	}
+}
+
+/************************************
+	scanFolder2
+    扫描文件夹或项目文件夹，根据文件夹内容的不同Item类型，执行不同的操作
+************************************/
+void scanFolder2(Folder f)
+{
+	Item itm
+
+	if (null f)
+	{
+		print("NULL Folder parameter passed")
+		return
+	}
+
+	// loop through items at top level of folder
+	for itm in f do
+	{
+		// sensible checks to avoid run-time errors
+		if (null itm) continue
+		if (isDeleted(itm)) continue
+
+		// take action according to type of the item
+		if (type (itm) == "Project")
+		{
+			// do something with project
+			//processProject(project(itm))
+
+			// scan items in the project
+			scanFolder2(folder(itm))
+		}
+		else if (type (itm) == "Folder")
+		{
+			// do something with folder
+			//processFolder(folder(itm))
+
+			// scan items in the folder
+			scanFolder2(folder(itm))
+		}
+        else if (type (itm) == "Link")
+		{
+			// do something with link module
+			//processLink(fullName(itm))
+		}
+		else if (type (itm) == "Formal")
+		{
+			// do something with formal module
+			processFormal(fullName(itm))
+		}
+
+	}
+}
+
+/************************************
+	doClose
+************************************/
+void doClose(DB db) // Close的动作函数
+{
+	release(dbMain) // 释放主窗口
+}
+
+/************************************
+	doList
+************************************/
+void doList(DB db) // 主窗口中ok按钮的回调函数，调用了scanFolder函数，调用了doClose函数
+{
+	outBuf = create // 创建Buffer
+    outBuf = "" //初始化Buffer内容为空字符串
+
+	string fName = get(dbeExportPath) // 从dbeExportPath读取文件名称
+
+	Stream outfile = write(fName) // 打开fName文件，已写入方式
+
+    // linkType, mLvl, totalCount, coveredCount, sLvl, coverage
+	outfile << "链接关系, 模块层级, 需求/架构元素/测试用例总数, 被覆盖需求数, 链接追溯, 链接数量, 覆盖率\n" // 写入表头
+
+	scanFolder1(current Folder)
+    scanFolder2(current Folder)
+
+    string mLvl
+    int n
+    for mLvl in MODULE_TYPE_VALUE do
+    {
+        for n in linkType do
+        {
+            //print (string key(linkType)) "\n"
+            caculateCoverage(mLvl, (string key(linkType)))
+        }
+    }
+
+    for n in reqCount do
+    {
+        print (string key(reqCount)) "总数:" n "\n" 
+    }
+
+    for n in coverReqCount do
+    {
+        print (string key(coverReqCount)) "总数:" n "\n"
+    }
+
+    string c
+
+    for c in coverage do
+    {
+        print (string key(coverage)) "覆盖率:" c "\n"
+    }
+
+    // 装填csv
+    for n in linkType do
+    {
+        string o_linkTrace = (string key(linkType))
+        string o_temp = ""
+        find(linkType, o_linkTrace, o_temp)
+        for o_totalCount in reqCount do 
+        {
+            string o_mLvl = (string key(reqCount))
+            int o_coveredCount = 0
+            string o_coverage = ""
+            int o_linkCount
+            
+            find(coverReqCount, o_linkTrace, o_coveredCount)
+            find(coverage, o_mLvl "<-" o_temp, o_coverage)
+            find(linkCount, o_linkTrace, o_linkCount)
+            outBuf +=  o_temp "," o_mLvl "," o_totalCount "," o_coveredCount "," o_linkTrace "," o_linkCount "," o_coverage "\n"
+        }
+    }
+
+	outfile << outBuf // 写入Buffer中的csv到文件
+	close(outfile) // 关闭文件
+	delete(outBuf) // 删除缓存
+
+	doClose(db) // 关闭主窗口
+}
+
+/************************************
+	MAIN
+************************************/
+currFolder = current Folder // 定位到当前文件夹
+
+dbMain = create("需求覆盖率统计") // 创建名为“List Link Counts”的主对话框
+
+label(dbMain, "该脚本导出需求覆盖率统计数据\n" //-
+              "输出文件是CSV格式文件:\n" //-
+              "链接关系, 模块层级, 需求总数, 被覆盖需求数, 链接来源, 覆盖率\n") // 在主对话框中创建标签元素（DBE）
+/*
+DBE field(DB box, string label, string initial, int width [,bool readOnly]) 
+*/
+dbeExport     = field(dbMain, "文件夹", fullName(currFolder), 50, true) // 在主对话框中添加字段元素，标签是“Folder”，字段初始值是当前文件夹的全称，宽度50，只读
+/*
+DBE fileName(DB box, [string label,] [,string initFileName [,string extension, string description [,bool readOnly]]]) 
+*/
+dbeExportPath = fileName(dbMain, "CSV文件存储位置", "C:/Temp/ReqCoverage.csv") // 在主对话框中添加文件名称元素，标签是“报告文件”，初始值是一个临时路径
+
+ok(dbMain, "OK", doList) // 在主对话框添加“ok”按钮，回调函数是doList
+close(dbMain, true, doClose) // 在主对话框添加“close”按钮，设置按钮可见，动作函数是doClose
+realize dbMain //创建并显示主窗口
+
+block(dbMain) // 以主窗口为激活态，其他行为受此窗口限制
+
+destroy(dbMain) // 销毁主窗口
+dbMain = null // 重置主窗口
