@@ -24,7 +24,7 @@ Skip linkMap        = createString   // （源模块层级->目标模块层级�
 Skip linkCount      = createString   // （源模块层级->目标模块层级，链接总数量）(系统需求->干系人需求, 55)
 Skip coverReqCount  = createString   // 模块层级被覆盖需求计数器(系统需求->干系人需求，22)
 Skip coverage       = createString   // （源模块层级->目标模块层级，覆盖率）(系统需求->干系人需求, 50.00%)
-Skip doneList        = createString   // ( 源模块, 链接模块)
+Skip doneList        = createString   // ( 源模块层级->目标模块, 链接模块)
 
 // 全局变量
 DB  dbMain        = null // DB含义是Dialog Box，此句的目标是创建“主对话框”
