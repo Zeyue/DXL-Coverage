@@ -94,11 +94,11 @@ void getValidObjNum(Module m)
         }
     }
     put(reqCount, mLvl, count) // 使用更新后的count重新创建该层级键值对
-    //***************** DEBUG*************************************
-    int temp = 0
-    find(reqCount, mLvl, temp)
-    print("--DEBUG--当前已识别 " mLvl " 有效对象数量: " temp "\n" )
-    // ***********************************************************
+    // //***************** DEBUG*************************************
+    // int temp = 0
+    // find(reqCount, mLvl, temp)
+    // print("--DEBUG--当前已识别 " mLvl " 有效对象数量: " temp "\n" )
+    // // ***********************************************************
 }
 
 /************************************
@@ -140,11 +140,11 @@ void getCoveredReqNum(Module src, Module tgt)
 
     filtering off
 
-    //***************** DEBUG*************************************
-    int tmp = 0
-    find(coverReqCount, (srcLvl "->" tgtLvl), tmp)
-    print "--DEBUG--当前已识别 " (srcLvl "->" tgtLvl) " 被 " lmn " 类型 覆盖数量: " tmp "\n"
-    // ***********************************************************
+    // //***************** DEBUG*************************************
+    // int tmp = 0
+    // find(coverReqCount, (srcLvl "->" tgtLvl), tmp)
+    // print "--DEBUG--当前已识别 " (srcLvl "->" tgtLvl) " 被 " lmn " 类型 覆盖数量: " tmp "\n"
+    // // ***********************************************************
 }
 
 void caculateCoverage(string mLvl, string linkTrace)
@@ -161,10 +161,12 @@ void caculateCoverage(string mLvl, string linkTrace)
         co = co*0.01
     }
     put(coverage, linkTrace, co"" "%")
-        
-    string tmp = ""
-    find(coverage, linkTrace, tmp)
-    print "--DEBUG--" mLvl " 总数: " totalCount " " linkTrace " 被覆盖数: " coveredCount " 覆盖率:" tmp "\n"
+
+    // //***************** DEBUG*************************************    
+    // string tmp = ""
+    // find(coverage, linkTrace, tmp)
+    // print "--DEBUG--" mLvl " 总数: " totalCount " " linkTrace " 被覆盖数: " coveredCount " 覆盖率:" tmp "\n"
+    // // ***********************************************************
 }
 
 /************************************
@@ -209,7 +211,7 @@ void scanLinkModule(string lmn)
         string linkM = ""
         if(find(doneList, (srcLvl "->" tgt), linkM)) // 如果在完成清单中找到了目标模块，将目标模块对应的链接模块赋值给linkM
         {
-            print "--DEBUG--找到的链接模块 " linkM " 当前在处理链接模块 " lmn "\n"
+            //print "--DEBUG--找到的链接模块 " linkM " 当前在处理链接模块 " lmn "\n"
             if(linkM == lmn)
             {
                 close(sm) // 关闭源模块
@@ -252,9 +254,9 @@ void processLink(string mName)
 ************************************/
 void processFormal(string mName)
 {
-    //***************** DEBUG*************************************
-	print("--DEBUG--正在处理Formal Module: " mName "\n") // 打印当前在处理的正式模块名称
-    // ***********************************************************
+    // //***************** DEBUG*************************************
+	// print("--DEBUG--正在处理Formal Module: " mName "\n") // 打印当前在处理的正式模块名称
+    // // ***********************************************************
     Module m = read(mName, false) // 读取正式模块
 
     getValidObjNum(m) // 获得正式模块内有效的对象数量
@@ -407,7 +409,7 @@ void doList(DB db) // 主窗口中ok按钮的回调函数，调用了scanFolder�
 	Stream outfile = write(fName) // 打开fName文件，已写入方式
 
     // linkType, mLvl, totalCount, coveredCount, sLvl, coverage
-	outfile << "链接关系, 链接方向, 分母结果, 分子结果, 覆盖率\n" // 写入表头
+	outfile << "链接关系, 链接方向, 分母结果, 分子结果, 覆盖率, 导出时间\n" // 写入表头
 
 	scanFolder1(current Folder)
     scanFolder2(current Folder)
@@ -435,7 +437,7 @@ void doList(DB db) // 主窗口中ok按钮的回调函数，调用了scanFolder�
         find(coverReqCount, o_linkTrace, o_cover)
         find(coverage, o_linkTrace, o_coverage)
         
-        outBuf +=  o_linkType "," o_linkTrace "," o_total "," o_cover "," o_coverage "\n"
+        outBuf +=  o_linkType "," o_linkTrace "," o_total "," o_cover "," o_coverage "," today() "\n"
     }
 
 	outfile << outBuf // 写入Buffer中的csv到文件
@@ -454,7 +456,7 @@ dbMain = create("需求覆盖率统计") // 创建名为“List Link Counts”�
 
 label(dbMain, "该脚本导出需求覆盖率统计数据\n" //-
               "输出文件是CSV格式文件:\n" //-
-              "链接关系, 源模块层级->目标模块层级, 分母, 分子, 覆盖率\n") // 在主对话框中创建标签元素（DBE）
+              "链接关系, 源模块层级->目标模块层级, 分母, 分子, 覆盖率， 导出时间\n") // 在主对话框中创建标签元素（DBE）
 /*
 DBE field(DB box, string label, string initial, int width [,bool readOnly]) 
 */
