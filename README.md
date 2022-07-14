@@ -46,10 +46,6 @@
 
     - 不打开DOORS
 
-## 业务用例分析
-
-![Use Case Diagram](UseCase.drawio.svg)
-
 ### 创建目录文件夹
 
 - 00 Admin
