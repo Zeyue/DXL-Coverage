@@ -1,6 +1,26 @@
+/************************************
+脚本名称：需求覆盖率统计
+版本：v1.0
+作者：Fab
+日期：2022/7/15
+
+部分脚本参考使用了Tony Goodman的公开脚本（www.smartdxl.com），特此致谢！
+
+使用方法：
+
+1. 请确保工程中每一层级模块均有相同的模块级属性（而不是对象级），来表征该模块是干系人需求，还是系统需求
+   此设置的目的是为了应对同一层级有多个正式模块的情况
+2. 请确保每个正式模块中，用来标识对象是否需要被计算覆盖度的属性是相同命名，例如脚本中默认的命名“对象类型”
+   同时，请确保该属性是枚举值，且表达用以计算覆盖度的枚举取值的对应数值应为1
+3. 运行脚本时，请在DOORS数据库视图下，打开工具->编辑DXL，将脚本复制过去；
+   确保当前数据库在需要分析的项目上高亮；
+   然后再运行脚本
+   
+************************************/
+
 pragma runLim,0  /* turn off timeout dialog */
 
-// 可配置变量
+// ****************可配置变量**************************
 string MODULE_TYPE_ATTR = NLS_("模块层级") // 为模块设置的模块属性，标识该模块的用途
 
 Skip MODULE_TYPE_VALUE = create
@@ -19,6 +39,8 @@ put(MODULE_TYPE_VALUE, 11, "系统合格性测试")
 string OBJECT_TYPE_ATTR = NLS_("对象类型") // 值=1代表需求/架构元素/测试用例, 可以替换成系统中实际表达该对象类型的属性名称
 int VALID_OBJECT_TYPE = 1 //"对象类型"值=1代表需求/架构元素/测试用例
 
+// ****************数据类型**************************
+
 Skip reqCount       = createString   // 模块层级有效对象计数器(干系人需求, 33)
 Skip linkMap        = createString   // （源模块层级->目标模块层级，链接模块）(系统需求->干系人需求，满足)
 Skip coverReqCount  = createString   // 模块层级被覆盖需求计数器(系统需求->干系人需求，22)
@@ -26,7 +48,7 @@ Skip doneList       = createString   // ( 源模块层级->目标模块, 链接�
 Skip targetList     = createString   // (系统需求->干系人需求, 干系人需求)
 Skip coverage       = createString   // （源模块层级->目标模块层级，覆盖率）(系统需求->干系人需求, 50.00%)
 
-// 全局变量
+// ****************窗口变量***************************
 DB  dbMain        = null // DB含义是Dialog Box，此句的目标是创建“主对话框”
 DBE dbeExport     = null // DBE含义是Dialog Box Element，此句目标是创建一个对话框元素“导出”
 DBE dbeExportPath = null // 创建一个对话框元素“导出路径”
@@ -104,7 +126,7 @@ void getValidObjNum(Module m)
 /************************************
     getCoveredReqNum
     作用：确认当前模块下的被特定链接关系覆盖对象（需求、架构元素、测试用例）数量，并累加到对应层级计数器
-    输入：模块
+    输入：源模块，目标模块
     输出：给coverReqCount计数器赋值
     返回值：空
 ************************************/
@@ -147,6 +169,13 @@ void getCoveredReqNum(Module src, Module tgt)
     // // ***********************************************************
 }
 
+/************************************
+    caculateCoverage
+    作用：计算覆盖率
+    输入：目标模块层级，链接方向
+    输出：给coverage计数器赋值
+    返回值：空
+************************************/
 void caculateCoverage(string mLvl, string linkTrace)
 {
     int coveredCount = 0
@@ -171,7 +200,7 @@ void caculateCoverage(string mLvl, string linkTrace)
 
 /************************************
 	scanLinkModule
-	输入：项，应输入链接模块
+	输入：链接模块名称
 	返回值：空
 	作用：遍历给定的链接模块中所有链接集，然后遍历每个链接集下源模块中所有的对象的出向链接
 ************************************/
@@ -285,10 +314,10 @@ void processProject(Project f)
 }
 
 /************************************
-	scanFolder1
+	scanFolderForLink
     扫描文件夹或项目文件夹，根据文件夹内容的不同Item类型，执行不同的操作
 ************************************/
-void scanFolder1(Folder f)
+void scanFolderForLink(Folder f)
 {
 	Item itm
 
@@ -312,7 +341,7 @@ void scanFolder1(Folder f)
 			//processProject(project(itm))
 
 			// scan items in the project
-			scanFolder1(folder(itm))
+			scanFolderForLink(folder(itm))
 		}
 		else if (type (itm) == "Folder")
 		{
@@ -320,7 +349,7 @@ void scanFolder1(Folder f)
 			//processFolder(folder(itm))
 
 			// scan items in the folder
-			scanFolder1(folder(itm))
+			scanFolderForLink(folder(itm))
 		}
         else if (type (itm) == "Link")
 		{
@@ -337,10 +366,10 @@ void scanFolder1(Folder f)
 }
 
 /************************************
-	scanFolder2
+	scanFolderForFormal
     扫描文件夹或项目文件夹，根据文件夹内容的不同Item类型，执行不同的操作
 ************************************/
-void scanFolder2(Folder f)
+void scanFolderForFormal(Folder f)
 {
 	Item itm
 
@@ -364,7 +393,7 @@ void scanFolder2(Folder f)
 			//processProject(project(itm))
 
 			// scan items in the project
-			scanFolder2(folder(itm))
+			scanFolderForFormal(folder(itm))
 		}
 		else if (type (itm) == "Folder")
 		{
@@ -372,7 +401,7 @@ void scanFolder2(Folder f)
 			//processFolder(folder(itm))
 
 			// scan items in the folder
-			scanFolder2(folder(itm))
+			scanFolderForFormal(folder(itm))
 		}
         else if (type (itm) == "Link")
 		{
@@ -411,8 +440,8 @@ void doList(DB db) // 主窗口中ok按钮的回调函数，调用了scanFolder�
     // linkType, mLvl, totalCount, coveredCount, sLvl, coverage
 	outfile << "链接关系, 链接方向, 分母结果, 分子结果, 覆盖率, 导出时间\n" // 写入表头
 
-	scanFolder1(current Folder)
-    scanFolder2(current Folder)
+	scanFolderForLink(current Folder)
+    scanFolderForFormal(current Folder)
 
     string tgtLvl
 
