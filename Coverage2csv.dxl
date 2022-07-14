@@ -23,8 +23,9 @@ Skip reqCount       = createString   // 模块层级有效对象计数器(干系
 Skip linkMap        = createString   // （源模块层级->目标模块层级，链接模块）(系统需求->干系人需求，满足)
 Skip linkCount      = createString   // （源模块层级->目标模块层级，链接总数量）(系统需求->干系人需求, 55)
 Skip coverReqCount  = createString   // 模块层级被覆盖需求计数器(系统需求->干系人需求，22)
+Skip doneList       = createString   // ( 源模块层级->目标模块, 链接模块)
+Skip targetList     = createString   // (系统需求->干系人需求, 干系人需求)
 Skip coverage       = createString   // （源模块层级->目标模块层级，覆盖率）(系统需求->干系人需求, 50.00%)
-Skip doneList        = createString   // ( 源模块层级->目标模块, 链接模块)
 
 // 全局变量
 DB  dbMain        = null // DB含义是Dialog Box，此句的目标是创建“主对话框”
@@ -159,8 +160,12 @@ void caculateCoverage(string mLvl, string linkTrace)
     {
         co = coveredCount * 10000 / totalCount
         co = co*0.01
-        put(coverage, linkTrace, co"" "%")
     }
+    put(coverage, linkTrace, co"" "%")
+        
+    string tmp = ""
+    find(coverage, linkTrace, tmp)
+    print "--DEBUG--" mLvl " 总数: " totalCount " " linkTrace " 被覆盖数: " coveredCount " 覆盖率:" tmp "\n"
 }
 
 /************************************
@@ -218,6 +223,7 @@ void scanLinkModule(string lmn)
         if(!find(linkMap, (srcLvl "->" tgtLvl)))
         {
             put(linkMap, (srcLvl "->" tgtLvl), lmn)
+            put(targetList, (srcLvl "->" tgtLvl), tgtLvl)
         }
 
         if(find(linkCount, (srcLvl "->" tgtLvl), count)) // 如果已存在对应层级的计数器
@@ -427,33 +433,12 @@ void doList(DB db) // 主窗口中ok按钮的回调函数，调用了scanFolder�
 	scanFolder1(current Folder)
     scanFolder2(current Folder)
 
-    string mLvl
+    string tgtLvl
     int n
-    for mLvl in MODULE_TYPE_VALUE do
-    {
-        string linkTrace = ""
-        for linkTrace in linkMap do
-        {
-            //print (string key(linkType)) "\n"
-            caculateCoverage(mLvl, (string key(linkMap)))
-        }
-    }
 
-    for n in reqCount do
+    for tgtLvl in targetList do
     {
-        print (string key(reqCount)) "总数:" n "\n" 
-    }
-
-    for n in coverReqCount do
-    {
-        print (string key(coverReqCount)) "总数:" n "\n"
-    }
-
-    string c
-
-    for c in coverage do
-    {
-        print (string key(coverage)) "覆盖率:" c "\n"
+        caculateCoverage(tgtLvl, (string key(targetList)))
     }
 
     // 装填csv
