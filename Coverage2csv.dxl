@@ -21,7 +21,6 @@ int VALID_OBJECT_TYPE = 1 //"对象类型"值=1代表需求/架构元素/测试�
 
 Skip reqCount       = createString   // 模块层级有效对象计数器(干系人需求, 33)
 Skip linkMap        = createString   // （源模块层级->目标模块层级，链接模块）(系统需求->干系人需求，满足)
-Skip linkCount      = createString   // （源模块层级->目标模块层级，链接总数量）(系统需求->干系人需求, 55)
 Skip coverReqCount  = createString   // 模块层级被覆盖需求计数器(系统需求->干系人需求，22)
 Skip doneList       = createString   // ( 源模块层级->目标模块, 链接模块)
 Skip targetList     = createString   // (系统需求->干系人需求, 干系人需求)
@@ -185,7 +184,6 @@ void scanLinkModule(string lmn)
 	string        tgt   = "" // 目标模块名称
     string        srcLvl = "" // 源模块层级
     string        tgtLvl = "" // 目标模块层级
-	int           count = 0 // 计数器
 	ModuleVersion mv    = null // Module Version
 	Link          l     = null // Link
 
@@ -226,25 +224,6 @@ void scanLinkModule(string lmn)
             put(targetList, (srcLvl "->" tgtLvl), tgtLvl)
         }
 
-        if(find(linkCount, (srcLvl "->" tgtLvl), count)) // 如果已存在对应层级的计数器
-        {
-            delete(linkCount, (srcLvl "->" tgtLvl)) // 将当前值取出给count，并删除该键值对
-        }
-
-		for o in all(sm) do // 遍历源模块中所有对象，使用all会对过滤器敏感，如果使用entire，会忽略过滤器
-		{
-			for l in all(o->lmn) do // 遍历对象o所有使用lmn类型链接的出向链接
-			{
-				// check for target module for matching name
-				mv = targetVersion(l) // 返回链接l的目标模块版本
-
-				if (fullName(mv) == tgt) // 如果模块版本的全称与目标模块名称一致
-				{
-					count++ // 计数器+1
-				}
-			}
-		}
-        put(linkCount, (srcLvl "->" tgtLvl), count)
         getCoveredReqNum(sm, tm)
 
         put(doneList, (srcLvl "->" tgt), lmn)
@@ -428,13 +407,13 @@ void doList(DB db) // 主窗口中ok按钮的回调函数，调用了scanFolder�
 	Stream outfile = write(fName) // 打开fName文件，已写入方式
 
     // linkType, mLvl, totalCount, coveredCount, sLvl, coverage
-	outfile << "链接关系, 模块层级, 需求/架构元素/测试用例总数, 被覆盖需求数, 链接追溯, 链接数量, 覆盖率\n" // 写入表头
+	outfile << "链接关系, 链接方向, 分母结果, 分子结果, 覆盖率\n" // 写入表头
 
 	scanFolder1(current Folder)
     scanFolder2(current Folder)
 
     string tgtLvl
-    int n
+
 
     for tgtLvl in targetList do
     {
@@ -442,23 +421,21 @@ void doList(DB db) // 主窗口中ok按钮的回调函数，调用了scanFolder�
     }
 
     // 装填csv
-    for n in linkMap do
+    string o_linkType
+    for o_linkType in linkMap do
     {
         string o_linkTrace = (string key(linkMap))
-        string o_temp = ""
-        find(linkMap, o_linkTrace, o_temp)
-        for o_totalCount in reqCount do 
-        {
-            string o_mLvl = (string key(reqCount))
-            int o_coveredCount = 0
-            string o_coverage = ""
-            int o_linkCount
-            
-            find(coverReqCount, o_linkTrace, o_coveredCount)
-            find(coverage, o_mLvl "<-" o_temp, o_coverage)
-            find(linkCount, o_linkTrace, o_linkCount)
-            outBuf +=  o_temp "," o_mLvl "," o_totalCount "," o_coveredCount "," o_linkTrace "," o_linkCount "," o_coverage "\n"
-        }
+        string o_tgtLvl = ""
+        int o_total = 0
+        int o_cover = 0
+        string o_coverage =""
+
+        find(targetList, o_linkTrace, o_tgtLvl)
+        find(reqCount, o_tgtLvl, o_total)
+        find(coverReqCount, o_linkTrace, o_cover)
+        find(coverage, o_linkTrace, o_coverage)
+        
+        outBuf +=  o_linkType "," o_linkTrace "," o_total "," o_cover "," o_coverage "\n"
     }
 
 	outfile << outBuf // 写入Buffer中的csv到文件
@@ -477,7 +454,7 @@ dbMain = create("需求覆盖率统计") // 创建名为“List Link Counts”�
 
 label(dbMain, "该脚本导出需求覆盖率统计数据\n" //-
               "输出文件是CSV格式文件:\n" //-
-              "链接关系, 模块层级, 需求总数, 被覆盖需求数, 链接来源, 覆盖率\n") // 在主对话框中创建标签元素（DBE）
+              "链接关系, 源模块层级->目标模块层级, 分母, 分子, 覆盖率\n") // 在主对话框中创建标签元素（DBE）
 /*
 DBE field(DB box, string label, string initial, int width [,bool readOnly]) 
 */
